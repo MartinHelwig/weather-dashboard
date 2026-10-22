@@ -25,6 +25,8 @@ const WX_PARAMS = {
     "weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,sunrise,sunset,daylight_duration,sunshine_duration,uv_index_max,precipitation_sum,precipitation_hours,precipitation_probability_max,snowfall_sum,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant",
 };
 const WX_VERSION = "16d-1"; // the saved answer of an older version of the request is not used
+const CACHE_DB = "weather-dashboard-cache",
+  CACHE_KEY_ALIAS = "weather-cache-key";
 const TTL_LOCATION = 24 * 3600e3,
   TTL_WEATHER = 10 * 60e3,
   REFRESH_MS = 15 * 60e3,
@@ -44,15 +46,90 @@ let citySearchTimer = 0,
   citySearchSequence = 0;
 const preferredColorScheme = window.matchMedia("(prefers-color-scheme: dark)");
 
-// --- Storage (never fails the page: a private window or blocked storage just remembers nothing) ------------------
-function keep(key, value) {
+// --- Encrypted storage (unavailable storage behaves like an empty cache) ---------------------------------------
+function openCacheDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(CACHE_DB, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains("keys")) db.createObjectStore("keys");
+      if (!db.objectStoreNames.contains("cache")) db.createObjectStore("cache");
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+function cacheTransaction(db, storeName, mode, operation) {
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(storeName, mode);
+    const request = operation(transaction.objectStore(storeName));
+    let result;
+    request.onsuccess = () => {
+      result = request.result;
+    };
+    request.onerror = () => reject(request.error);
+    transaction.oncomplete = () => resolve(result);
+    transaction.onerror = () => reject(transaction.error || request.error);
+    transaction.onabort = () => reject(transaction.error || request.error);
+  });
+}
+async function cacheKey(db, create) {
+  let key = await cacheTransaction(db, "keys", "readonly", (store) =>
+    store.get(CACHE_KEY_ALIAS),
+  );
+  if (!key && create) {
+    key = await window.crypto.subtle.generateKey(
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt", "decrypt"],
+    );
+    await cacheTransaction(db, "keys", "readwrite", (store) =>
+      store.put(key, CACHE_KEY_ALIAS),
+    );
+  }
+  return key;
+}
+async function readCache(key) {
+  let db;
   try {
-    if (value === undefined) return JSON.parse(localStorage.getItem(key));
-    localStorage.setItem(key, JSON.stringify(value));
+    db = await openCacheDB();
+    const encrypted = await cacheTransaction(db, "cache", "readonly", (store) =>
+      store.get(key),
+    );
+    if (!encrypted) return null;
+    const cryptoKey = await cacheKey(db, false);
+    if (!cryptoKey) return null;
+    const plaintext = await window.crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: encrypted.iv },
+      cryptoKey,
+      encrypted.data,
+    );
+    return JSON.parse(new TextDecoder().decode(plaintext));
   } catch {
     return null;
+  } finally {
+    db?.close();
   }
-  return null;
+}
+async function writeCache(key, value) {
+  let db;
+  try {
+    db = await openCacheDB();
+    const cryptoKey = await cacheKey(db, true);
+    const iv = window.crypto.getRandomValues(new Uint8Array(12));
+    const data = await window.crypto.subtle.encrypt(
+      { name: "AES-GCM", iv },
+      cryptoKey,
+      new TextEncoder().encode(JSON.stringify(value)),
+    );
+    await cacheTransaction(db, "cache", "readwrite", (store) =>
+      store.put({ iv, data }, key),
+    );
+  } catch {
+    // The cache is optional; unavailable storage is treated like a cache miss.
+  } finally {
+    db?.close();
+  }
 }
 function t(key) {
   return globalThis.WX_TEXT[lang][key] !== undefined
@@ -110,7 +187,7 @@ async function searchCities(query) {
 
 async function locate(cityName) {
   const language = lang === "de" ? "de" : "en";
-  const saved = keep("wx.loc");
+  const saved = await readCache("wx.loc");
 
   if (
     saved &&
@@ -135,32 +212,34 @@ async function locate(cityName) {
       throw new Error("location not found");
     }
   } catch (e) {
-    if (saved && saved.city?.toLowerCase() === cityName?.toLowerCase())
+    if (saved && saved.city?.toLowerCase() === cityName?.toLowerCase()) {
       return saved;
+    }
     throw e;
   }
 
   const place = placeFromResult(d.results[0]);
-  keep("wx.loc", place);
+  await writeCache("wx.loc", place);
   return place;
 }
 
 async function forecast(place, force) {
   const key =
       place.lat.toFixed(2) + "," + place.lon.toFixed(2) + "|" + WX_VERSION,
-    saved = keep("wx.data");
+    saved = await readCache("wx.data");
   if (saved && saved.key === key) {
     wx = saved.data;
     wxAt = saved.at;
-    if (Date.now() - saved.at < (force ? MIN_MANUAL_MS : TTL_WEATHER))
+    if (Date.now() - saved.at < (force ? MIN_MANUAL_MS : TTL_WEATHER)) {
       return false; // young enough: no request
+    }
   }
   const q = new URLSearchParams(WX_PARAMS);
   q.set("latitude", place.lat);
   q.set("longitude", place.lon);
   wx = await getJson(API_WX + "?" + q.toString());
   wxAt = Date.now();
-  keep("wx.data", { key, at: wxAt, data: wx });
+  await writeCache("wx.data", { key, at: wxAt, data: wx });
   return true;
 }
 
@@ -173,8 +252,9 @@ async function load(force, citySelection) {
         ? citySelection.trim()
         : citySelection.name;
     if (!requestedCity) return;
-    if (typeof citySelection !== "string")
+    if (typeof citySelection !== "string") {
       selectedPlace = placeFromResult(citySelection);
+    }
     const cityChanged = requestedCity.toLowerCase() !== city.toLowerCase();
     const placeChanged =
       selectedPlace &&
@@ -195,11 +275,11 @@ async function load(force, citySelection) {
   try {
     if (selectedPlace) {
       loc = selectedPlace;
-      keep("wx.loc", loc);
+      await writeCache("wx.loc", loc);
     } else {
       loc = await locate(city);
     }
-    keep("wx.city", city);
+    void writeCache("wx.city", city);
   } catch {
     error = "err_loc";
   }
@@ -310,8 +390,9 @@ function updateCitySuggestions(query) {
         sequence !== citySearchSequence ||
         $("city-form").hidden ||
         $("city-input").value.trim() !== query
-      )
+      ) {
         return;
+      }
       showCitySuggestions(results, t("city_no_results"));
     } catch {
       if (sequence !== citySearchSequence) return;
@@ -453,7 +534,10 @@ function fillStrip(strip, from, n, nowFirst) {
       el = document.createElement("div");
     el.className = "hr";
     const pop = h.precipitation_probability[j] || 0;
-    el.innerHTML = `<b></b>${globalThis.wxIcon(h.weather_code[j], h.is_day[j] === 1)}<span class="t"></span><span class="p"></span>`;
+    el.innerHTML = `<b></b>${globalThis.wxIcon(
+      h.weather_code[j],
+      h.is_day[j] === 1,
+    )}<span class="t"></span><span class="p"></span>`;
     el.children[0].textContent =
       nowFirst && k === 0 ? t("now") : hhmm(h.time[j]);
     el.querySelector(".t").textContent = temp(h.temperature_2m[j]);
@@ -508,7 +592,11 @@ function chart(pts, box, main) {
   let path = "M" + x(0).toFixed(1) + " " + y(pts[0].temp).toFixed(1);
   for (let k = 1; k < pts.length; k++) {
     const mid = (x(k - 1) + x(k)) / 2;
-    path += `C${mid.toFixed(1)} ${y(pts[k - 1].temp).toFixed(1)} ${mid.toFixed(1)} ${y(pts[k].temp).toFixed(1)} ${x(k).toFixed(1)} ${y(pts[k].temp).toFixed(1)}`;
+    path += `C${mid.toFixed(1)} ${y(pts[k - 1].temp).toFixed(1)} ${mid.toFixed(
+      1,
+    )} ${y(pts[k].temp).toFixed(1)} ${x(k).toFixed(1)} ${y(pts[k].temp).toFixed(
+      1,
+    )}`;
   }
   const area =
     path +
@@ -518,20 +606,42 @@ function chart(pts, box, main) {
     // grid lines with the temperature of each
     const v = lo + ((hi - lo) * g) / 3,
       gy = y(v);
-    s += `<line class="grid" x1="${L}" x2="${W - R}" y1="${gy.toFixed(1)}" y2="${gy.toFixed(1)}"/><text class="axis" x="${(L - 0.5 * rem).toFixed(1)}" y="${(gy + 0.28 * rem).toFixed(1)}" text-anchor="end">${Math.round(v)}°</text>`;
+    s += `<line class="grid" x1="${L}" x2="${W - R}" y1="${gy.toFixed(
+      1,
+    )}" y2="${gy.toFixed(1)}"/><text class="axis" x="${(L - 0.5 * rem).toFixed(
+      1,
+    )}" y="${(gy + 0.28 * rem).toFixed(1)}" text-anchor="end">${Math.round(
+      v,
+    )}°</text>`;
   }
   pts.forEach((p, k) => {
     // rain bars
     const bh = (p.pop / 100) * bars,
       bw = Math.max(3, (w / pts.length) * 0.45);
-    if (p.pop >= 5)
-      s += `<rect class="pbar" x="${(x(k) - bw / 2).toFixed(1)}" y="${(T + ph - bh).toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="2"/>`;
+    if (p.pop >= 5) {
+      s += `<rect class="pbar" x="${(x(k) - bw / 2).toFixed(1)}" y="${(
+        T +
+        ph -
+        bh
+      ).toFixed(
+        1,
+      )}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="2"/>`;
+    }
   });
   s += `<path class="area" d="${area}"/><path class="line" d="${path}"/>`;
   pts.forEach((p, k) => {
     if (k % 3 !== 0 && k !== pts.length - 1) return;
-    s += `<circle class="dot" cx="${x(k).toFixed(1)}" cy="${y(p.temp).toFixed(1)}" r="${(0.3 * rem).toFixed(1)}"/><text class="val" x="${x(k).toFixed(1)}" y="${(y(p.temp) - 0.8 * rem).toFixed(1)}" text-anchor="middle">${Math.round(p.temp)}°</text>`;
-    s += `<text class="axis" x="${x(k).toFixed(1)}" y="${(H - 0.5 * rem).toFixed(1)}" text-anchor="middle">${p.label}</text>`;
+    s += `<circle class="dot" cx="${x(k).toFixed(1)}" cy="${y(p.temp).toFixed(
+      1,
+    )}" r="${(0.3 * rem).toFixed(1)}"/><text class="val" x="${x(k).toFixed(
+      1,
+    )}" y="${(y(p.temp) - 0.8 * rem).toFixed(1)}" text-anchor="middle">${Math.round(
+      p.temp,
+    )}°</text>`;
+    s += `<text class="axis" x="${x(k).toFixed(1)}" y="${(
+      H -
+      0.5 * rem
+    ).toFixed(1)}" text-anchor="middle">${p.label}</text>`;
   });
   box.innerHTML = s + "</svg>";
 }
@@ -566,7 +676,10 @@ function daily() {
       t("day_open").replace("{day}", dayName(day, i)),
     );
     row.innerHTML =
-      `<b class="dn"></b><b class="ds"></b><span class="di">${globalThis.wxIcon(d.weather_code[i], true)}</span><span class="dd"></span><span class="dp"></span>` +
+      `<b class="dn"></b><b class="ds"></b><span class="di">${globalThis.wxIcon(
+        d.weather_code[i],
+        true,
+      )}</span><span class="dd"></span><span class="dp"></span>` +
       `<span class="lo"></span><span class="range"><i></i></span><span class="hi"></span><span class="dx"></span>`;
     row.querySelector(".dn").textContent = dayName(day, i);
     row.querySelector(".ds").textContent = dayLabel(day, i);
@@ -696,8 +809,9 @@ function renderDay() {
   );
   const from = h.time.findIndex((x) => x.startsWith(day)),
     n = from < 0 ? 0 : Math.min(24, h.time.length - from);
-  if (n)
+  if (n) {
     chart(fillStrip($("day-strip"), from, n, false), $("day-chart"), false);
+  }
   $("day-prev").disabled = i === 0;
   $("day-next").disabled = i === d.time.length - 1;
 }
@@ -725,7 +839,11 @@ function sun() {
     `<svg viewBox="0 0 360 200" preserveAspectRatio="xMidYMid meet"><path class="horizon" d="M10 170H350"/>` +
     `<path class="arc" d="M${cx - R} ${cy}A${R} ${R} 0 0 1 ${cx + R} ${cy}"/>` +
     (up
-      ? `<path class="arcdone" d="M${cx - R} ${cy}A${R} ${R} 0 0 1 ${sx.toFixed(1)} ${sy.toFixed(1)}"/><circle class="sunball" cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="11"/>`
+      ? `<path class="arcdone" d="M${cx - R} ${cy}A${R} ${R} 0 0 1 ${sx.toFixed(
+          1,
+        )} ${sy.toFixed(1)}"/><circle class="sunball" cx="${sx.toFixed(1)}" cy="${sy.toFixed(
+          1,
+        )}" r="11"/>`
       : "") +
     `</svg>`;
   const m = moonPhase(Date.now());
@@ -756,7 +874,7 @@ function clock() {
 // --- Controls -----------------------------------------------------------------------------------------------------
 function setLang(l) {
   lang = globalThis.WX_TEXT[l] ? l : "de";
-  keep("wx.lang", lang);
+  const persistence = writeCache("wx.lang", lang);
   document.documentElement.lang = lang;
   document.title = t("title");
   document.querySelectorAll("[data-i18n]").forEach((el) => {
@@ -778,11 +896,12 @@ function setLang(l) {
     render();
     if ($("day").open) renderDay();
   }
+  return persistence;
 }
 
 function setTheme(m) {
   theme = m === "light" || m === "dark" ? m : "auto";
-  keep("wx.theme", theme);
+  const persistence = writeCache("wx.theme", theme);
   document.documentElement.dataset.theme =
     theme === "auto"
       ? preferredColorScheme.matches
@@ -794,25 +913,26 @@ function setTheme(m) {
     button.classList.toggle("act", selected);
     button.setAttribute("aria-pressed", String(selected));
   });
+  return persistence;
 }
 
-function start() {
+async function start() {
   const q = new URLSearchParams(location.search);
-  const saved = keep("wx.lang");
+  const saved = await readCache("wx.lang");
   if (/^\d+$/.test(q.get("day") || "")) pendingDay = +q.get("day");
-  setTheme(q.get("theme") || keep("wx.theme") || "auto");
+  setTheme(q.get("theme") || (await readCache("wx.theme")) || "auto");
   const updatePreferredTheme = () => {
     if (theme === "auto") setTheme("auto");
   };
-  if (preferredColorScheme.addEventListener)
+  if (preferredColorScheme.addEventListener) {
     preferredColorScheme.addEventListener("change", updatePreferredTheme);
-  else preferredColorScheme.addListener(updatePreferredTheme);
+  } else preferredColorScheme.addListener(updatePreferredTheme);
   setLang(
     q.get("lang") ||
       saved ||
       ((navigator.language || "").toLowerCase().startsWith("de") ? "de" : "en"),
   );
-  city = keep("wx.city") || "Berlin";
+  city = (await readCache("wx.city")) || "Berlin";
   $("city-input").value = city;
   $("btn-city-toggle").onclick = () => setCitySearchOpen($("city-form").hidden);
   $("city-input").oninput = (e) => updateCitySuggestions(e.target.value.trim());
@@ -905,4 +1025,4 @@ function start() {
   load(false);
 }
 
-start();
+void start();

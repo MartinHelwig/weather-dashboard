@@ -48,6 +48,55 @@ function assertNotEqual(actual, expected, message) {
   if (Object.is(actual, expected)) fail(message);
 }
 
+function createIndexedDB() {
+  const stores = new Map();
+  const database = {
+    objectStoreNames: { contains: (name) => stores.has(name) },
+    createObjectStore: (name) => stores.set(name, new Map()),
+    transaction: (name) => {
+      const transaction = {};
+      transaction.objectStore = () => {
+        const store = stores.get(name);
+        return {
+          get: (key) => {
+            const request = {};
+            queueMicrotask(() => {
+              request.result = store.get(key);
+              request.onsuccess();
+              queueMicrotask(() => transaction.oncomplete());
+            });
+            return request;
+          },
+          put: (value, key) => {
+            const request = {};
+            queueMicrotask(() => {
+              store.set(key, value);
+              request.result = key;
+              request.onsuccess();
+              queueMicrotask(() => transaction.oncomplete());
+            });
+            return request;
+          },
+        };
+      };
+      return transaction;
+    },
+    close: () => {},
+  };
+  return {
+    stores,
+    open: () => {
+      const request = {};
+      queueMicrotask(() => {
+        request.result = database;
+        if (stores.size === 0) request.onupgradeneeded();
+        request.onsuccess();
+      });
+      return request;
+    },
+  };
+}
+
 function createApp(
   fetchImpl = async () => {
     throw new Error("Unexpected network request");
@@ -57,6 +106,7 @@ function createApp(
   restoreGlobals();
 
   const storage = new Map();
+  const indexedDB = createIndexedDB();
   const themeButtons = ["auto", "light", "dark"].map((themeMode) => {
     const classes = new Set();
     const attributes = {};
@@ -80,11 +130,14 @@ function createApp(
         selector === "[data-theme-mode]" ? themeButtons : [],
     },
     fetch: fetchImpl,
+    indexedDB,
     localStorage: {
       getItem: (key) => storage.get(key) ?? null,
+      removeItem: (key) => storage.delete(key),
       setItem: (key, value) => storage.set(key, value),
     },
     window: {
+      crypto: globalThis.crypto,
       matchMedia: () => ({ matches: prefersDark }),
     },
   };
@@ -108,12 +161,12 @@ function createApp(
     restoreGlobals = () => {};
   };
 
-  const withoutStartup = appSource.replace(/\nstart\(\);\s*$/, "\n");
+  const withoutStartup = appSource.replace(/\nvoid start\(\);\s*$/, "\n");
   assertNotEqual(withoutStartup, appSource, "app startup call should be found");
   const api = new Function(
     `${textsSource}\n${iconsSource}\n${withoutStartup}\nreturn {
       num, temp, compass, wmoText, uvLevel, moonPhase, dayName,
-      placeFromResult, searchCities, locate, forecast,
+      placeFromResult, searchCities, locate, forecast, readCache, writeCache,
       wxIcon: globalThis.wxIcon, wxSky: globalThis.wxSky,
       setLang: (value) => { lang = value; },
       setTheme,
@@ -121,7 +174,13 @@ function createApp(
     };`,
   )();
 
-  return { api, storage, themeButtons, document: globals.document };
+  return {
+    api,
+    storage,
+    cacheStorage: indexedDB.stores,
+    themeButtons,
+    document: globals.document,
+  };
 }
 
 const tests = [
@@ -231,7 +290,7 @@ const tests = [
     "uses a fresh location cache without requesting geocoding",
     async () => {
       let calls = 0;
-      const { api, storage } = createApp(async () => {
+      const { api, cacheStorage } = createApp(async () => {
         calls++;
         throw new Error("Should use cached location");
       });
@@ -244,10 +303,17 @@ const tests = [
         timezone: "Europe/Berlin",
         at: Date.now(),
       };
-      storage.set("wx.loc", JSON.stringify(cached));
+      await api.writeCache("wx.loc", cached);
 
       assertDeepEqual({ ...(await api.locate("berlin")) }, cached);
       assertEqual(calls, 0);
+      assertEqual(cacheStorage.get("cache").has("wx.loc"), true);
+      assertEqual(
+        new TextDecoder()
+          .decode(cacheStorage.get("cache").get("wx.loc").data)
+          .includes("Berlin"),
+        false,
+      );
     },
   ],
   [
@@ -270,26 +336,58 @@ const tests = [
     async () => {
       let requestedUrl;
       const response = { current: { temperature_2m: 18 } };
-      const { api, storage } = createApp(async (url) => {
+      const { api, cacheStorage } = createApp(async (url) => {
         requestedUrl = url;
         return { ok: true, json: async () => response };
       });
       const place = { lat: 52.52, lon: 13.405 };
       const key = "52.52,13.40|16d-1";
       const startedAt = Date.now();
-      storage.set(
-        "wx.data",
-        JSON.stringify({ key, at: Date.now() - 11 * 60 * 1000, data: {} }),
-      );
+      await api.writeCache("wx.data", {
+        key,
+        at: Date.now() - 11 * 60 * 1000,
+        data: {},
+      });
 
       assertEqual(await api.forecast(place, false), true);
       assertMatch(requestedUrl, /latitude=52\.52/);
       assertMatch(requestedUrl, /longitude=13\.405/);
       assertDeepEqual({ ...api.getWeather() }, response);
-      const saved = JSON.parse(storage.get("wx.data"));
+      const saved = await api.readCache("wx.data");
       assertEqual(saved.key, key);
       assertOk(saved.at >= startedAt && saved.at <= Date.now());
       assertDeepEqual(saved.data, response);
+      assertEqual(
+        new TextDecoder()
+          .decode(cacheStorage.get("cache").get("wx.data").data)
+          .includes("temperature_2m"),
+        false,
+      );
+    },
+  ],
+  [
+    "treats an unreadable encrypted forecast as a cache miss",
+    async () => {
+      let calls = 0;
+      const response = { current: { temperature_2m: 18 } };
+      const { api, cacheStorage } = createApp(async () => {
+        calls++;
+        return { ok: true, json: async () => response };
+      });
+      const place = { lat: 52.52, lon: 13.405 };
+      await api.writeCache("wx.data", {
+        key: "52.52,13.40|16d-1",
+        at: Date.now(),
+        data: {},
+      });
+      cacheStorage.get("cache").set("wx.data", {
+        iv: new Uint8Array(12),
+        data: new Uint8Array([1, 2, 3]).buffer,
+      });
+
+      assertEqual(await api.forecast(place, false), true);
+      assertEqual(calls, 1);
+      assertDeepEqual((await api.readCache("wx.data")).data, response);
     },
   ],
   [
@@ -311,15 +409,22 @@ const tests = [
   ],
   [
     "selects one accessible theme mode and applies automatic system preference",
-    () => {
-      const { api, storage, themeButtons, document } = createApp(
+    async () => {
+      const { api, storage, cacheStorage, themeButtons, document } = createApp(
         undefined,
         true,
       );
 
-      api.setTheme("auto");
+      await api.setTheme("auto");
       assertEqual(document.documentElement.dataset.theme, "dark");
-      assertEqual(storage.get("wx.theme"), '"auto"');
+      assertEqual(await api.readCache("wx.theme"), "auto");
+      assertEqual(storage.has("wx.theme"), false);
+      assertEqual(
+        new TextDecoder()
+          .decode(cacheStorage.get("cache").get("wx.theme").data)
+          .includes("auto"),
+        false,
+      );
       assertDeepEqual(
         themeButtons.map((button) => button.attributes["aria-pressed"]),
         ["true", "false", "false"],
