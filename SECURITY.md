@@ -14,6 +14,6 @@ Only the main branch is actually supported.
 
 ## Reporting a Vulnerability
 
-Please use the "Report a vulnerability" button in this project repository "Security Advisories".
+Please use the [Report a vulnerability](https://github.com/MartinHelwig/weather-dashboard/security) button in this project repository.
 
-**Please do not report security vulnerabilities through public GitHub issues, discussions, or pull requests.**
+**Please do not report security vulnerabilities through public issues, discussions, or pull requests.**
