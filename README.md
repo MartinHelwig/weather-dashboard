@@ -12,3 +12,4 @@ SPDX-License-Identifier: MIT
 ![Maintenance](https://img.shields.io/maintenance/yes/2024?label=Maintained)
 [![REUSE](https://img.shields.io/badge/REUSE-conform%20process-blue)](https://reuse.software/)
 [![Dependabot](https://badgen.net/badge/Dependabot/enabled/green?icon=dependabot)](https://dependabot.com/)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/MartinHelwig/weather-dashboard/badge)](https://securityscorecards.dev/viewer/?uri=github.com/MartinHelwig/weather-dashboard)
