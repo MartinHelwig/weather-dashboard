@@ -4,6 +4,6 @@
 
 blank_issues_enabled: false
 contact_links:
-  - name: Informations
-    url: https://MartinHelwig.github.io/auto-mouse/
-    about: Please use this to get more informations.
+  - name: Information
+    url: https://MartinHelwig.github.io/weather-dashboard/
+    about: Please use this to get more information.
