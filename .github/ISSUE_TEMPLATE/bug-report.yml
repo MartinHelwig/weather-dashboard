@@ -15,7 +15,7 @@ body:
 
         > [!important]  
         Please do not report security vulnerabilities through public issues, discussions, or pull requests.
-        Follow these instruction to report security issues: [Security Policy](../security/policy).
+        Follow these instruction to report security issues: [Security Policy](security/policy).
 
   - type: textarea
     id: bug-description
@@ -70,7 +70,7 @@ body:
     id: terms
     attributes:
       label: By submitting this issue, you agree to follow our Code of Conduct.
-      description: I agree to follow this project's [Code of Conduct](../?tab=coc-ov-file#readme).
+      description: I agree to follow this project's [Code of Conduct](?tab=coc-ov-file#readme).
       options:
         - "Yes"
     validations:
