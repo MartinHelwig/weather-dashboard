@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: 2023 Martin Helwig
+#
+# SPDX-License-Identifier: MIT
+
+changelog:
+  exclude:
+    labels:
+      - ignore for release notes
+  categories:
+    - title: 🛠 Breaking Changes
+      labels:
+        - breaking change
+    - title: ⭐ Features & Improvements
+      labels:
+        - enhancement
+    - title: 🐛 Bug Fixes
+      labels:
+        - bug
+    - title: 🔨 Dependencies
+      labels:
+        - dependencies
+    - title: 👻 Maintenance
+      labels:
+        - maintenance
+    - title: 🔧 Build
+      labels:
+        - build
+    - title: 🎉 Other Changes
+      labels:
+        - "*"
+      exclude:
+        labels:
+          - breaking change
+          - enhancement
+          - bug
+          - dependencies
+          - maintenance
+          - build
