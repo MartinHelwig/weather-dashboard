@@ -1,0 +1,17 @@
+version = 1
+
+[[annotations]]
+path = "**/*.json"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Martin Helwig"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = [
+    "www/favicon.ico",
+    "www/images/favicon-*.png",
+    "www/images/apple-touch-icon.png"
+]
+precedence = "override"
+SPDX-FileCopyrightText = "None"
+SPDX-License-Identifier = "CC0-1.0"

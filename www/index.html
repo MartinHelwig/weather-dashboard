@@ -1,0 +1,368 @@
+<!--
+SPDX-FileCopyrightText: 2026 Martin Helwig
+
+SPDX-License-Identifier: MIT
+-->
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Wetter</title>
+    <!-- Classic Favicon -->
+    <link rel="icon" href="favicon.ico" sizes="any" />
+    <!-- PNG-Favicons -->
+    <link rel="icon" type="images" sizes="32x32" href="favicon-32x32.png" />
+    <link rel="icon" type="images" sizes="16x16" href="favicon-16x16.png" />
+    <!-- iPhone/iPad Homescreen -->
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
+    <link rel="stylesheet" href="css/style.css" />
+  </head>
+  <body>
+    <script>
+      // The saved theme and the URL (?theme=dark, ?lang=en) are applied before the first paint: no light flash in dark mode.
+      try {
+        const q = new URLSearchParams(location.search);
+        const m = q.get("theme") || localStorage.getItem("wx.theme");
+        document.documentElement.dataset.theme =
+          m === "light" || m === "dark"
+            ? m
+            : window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+      } catch {}
+    </script>
+    <div class="app">
+      <header class="top">
+        <div class="where">
+          <div class="place-title">
+            <h1 id="place">&ndash;</h1>
+            <button
+              id="btn-city-toggle"
+              class="city-toggle"
+              type="button"
+              aria-controls="city-form"
+              aria-expanded="false"
+              data-i18n-label="city_search"
+              data-i18n-title="city_search"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="10.8" cy="10.8" r="6.3" />
+                <path d="m15.5 15.5 4.2 4.2" />
+              </svg>
+            </button>
+            <form id="city-form" class="city-form" hidden>
+              <label
+                class="sr-only"
+                for="city-input"
+                data-i18n="city_label"
+              ></label>
+              <input
+                id="city-input"
+                type="search"
+                maxlength="100"
+                required
+                autocomplete="off"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-controls="city-suggestions"
+                aria-expanded="false"
+                data-i18n-placeholder="city_placeholder"
+              />
+              <button
+                class="city-submit"
+                type="submit"
+                data-i18n-label="city_select"
+                data-i18n-title="city_select"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 12h14M13 6l6 6-6 6" />
+                </svg>
+              </button>
+              <div
+                id="city-suggestions"
+                class="city-suggestions"
+                role="listbox"
+                aria-live="polite"
+                hidden
+              ></div>
+            </form>
+          </div>
+          <p id="when" class="muted">&nbsp;</p>
+        </div>
+        <div class="ctrl">
+          <button
+            id="btn-refresh"
+            class="ibtn"
+            type="button"
+            data-i18n-label="refresh"
+            data-i18n-title="refresh"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M20 12a8 8 0 1 1-2.3-5.6" />
+              <path d="M20 4v5h-5" />
+            </svg>
+          </button>
+          <div class="seg theme-toggle" role="group" data-i18n-label="theme">
+            <button
+              type="button"
+              data-theme-mode="auto"
+              data-i18n-label="theme_auto"
+              data-i18n-title="theme_auto"
+              aria-pressed="false"
+            >
+              <svg class="theme-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" fill="#1f2a38" stroke="#1f2a38" />
+                <path d="M12 3a9 9 0 0 1 0 18z" fill="#fff" stroke="#fff" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              data-theme-mode="light"
+              data-i18n-label="theme_light"
+              data-i18n-title="theme_light"
+              aria-pressed="false"
+            >
+              <svg class="theme-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="4" />
+                <path
+                  d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"
+                />
+              </svg>
+            </button>
+            <button
+              type="button"
+              data-theme-mode="dark"
+              data-i18n-label="theme_dark"
+              data-i18n-title="theme_dark"
+              aria-pressed="false"
+            >
+              <svg class="theme-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5 8.5 8.5 0 1 0 20.5 14.5Z"
+                />
+              </svg>
+            </button>
+          </div>
+          <div class="seg" role="group" data-i18n-label="language">
+            <button type="button" data-lang="de">DE</button
+            ><button type="button" data-lang="en">EN</button>
+          </div>
+          <button
+            id="btn-full"
+            class="ibtn"
+            type="button"
+            data-i18n-label="fullscreen"
+            data-i18n-title="fullscreen"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <div id="status" class="status" hidden role="status"></div>
+
+      <main class="dash" id="dash" hidden>
+        <section
+          class="card hero"
+          id="hero"
+          data-sky="clear-day"
+          aria-live="polite"
+        >
+          <div class="hero-main">
+            <div id="hero-icon" class="hero-icon" aria-hidden="true"></div>
+            <div class="hero-temp">
+              <span id="hero-temp">&ndash;</span><sup>&deg;</sup>
+            </div>
+          </div>
+          <p id="hero-desc" class="hero-desc">&ndash;</p>
+          <div class="hero-sub">
+            <span
+              ><i data-i18n="feels"></i> <b id="hero-feels">&ndash;</b></span
+            >
+            <span><i data-i18n="high"></i> <b id="hero-hi">&ndash;</b></span>
+            <span><i data-i18n="low"></i> <b id="hero-lo">&ndash;</b></span>
+          </div>
+          <p id="hero-updated" class="hero-updated"></p>
+        </section>
+
+        <section class="tiles" aria-label="Details">
+          <div class="tile">
+            <h3 data-i18n="humidity"></h3>
+            <p class="big">
+              <span id="m-humidity">&ndash;</span><small>%</small>
+            </p>
+            <div class="bar"><i id="m-humidity-bar"></i></div>
+            <p class="sub" id="m-dew"></p>
+          </div>
+          <div class="tile">
+            <h3 data-i18n="wind"></h3>
+            <p class="big">
+              <span id="m-wind">&ndash;</span><small>km/h</small>
+            </p>
+            <p class="sub">
+              <span class="windline"
+                ><svg
+                  id="m-wind-arrow"
+                  class="warrow"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path d="M12 3v18M12 3l-5 6M12 3l5 6" /></svg
+                ><b id="m-wind-dir"></b></span
+              ><span id="m-gust"></span>
+            </p>
+          </div>
+          <div class="tile">
+            <h3 data-i18n="pressure"></h3>
+            <p class="big">
+              <span id="m-pressure">&ndash;</span><small>hPa</small>
+            </p>
+            <p class="sub" id="m-trend"></p>
+          </div>
+          <div class="tile">
+            <h3 data-i18n="uv"></h3>
+            <p class="big"><span id="m-uv">&ndash;</span></p>
+            <div class="scale"><i id="m-uv-mark"></i></div>
+            <p class="sub" id="m-uv-label"></p>
+          </div>
+          <div class="tile">
+            <h3 data-i18n="rain"></h3>
+            <p class="big">
+              <span id="m-precip">&ndash;</span><small>mm</small>
+            </p>
+            <p class="sub" id="m-precip-sub"></p>
+          </div>
+          <div class="tile">
+            <h3 data-i18n="visibility"></h3>
+            <p class="big"><span id="m-vis">&ndash;</span><small>km</small></p>
+            <p class="sub" id="m-vis-label"></p>
+          </div>
+          <div class="tile">
+            <h3 data-i18n="clouds"></h3>
+            <p class="big"><span id="m-cloud">&ndash;</span><small>%</small></p>
+            <div class="bar"><i id="m-cloud-bar"></i></div>
+          </div>
+          <div class="tile">
+            <h3 data-i18n="chance"></h3>
+            <p class="big"><span id="m-pop">&ndash;</span><small>%</small></p>
+            <div class="bar rainbar"><i id="m-pop-bar"></i></div>
+            <p class="sub" data-i18n="chance_sub"></p>
+          </div>
+        </section>
+
+        <section class="card hourly">
+          <h2 data-i18n="next24"></h2>
+          <div id="strip" class="strip"></div>
+          <div
+            id="chart"
+            class="chart"
+            role="img"
+            data-i18n-label="chart"
+          ></div>
+        </section>
+
+        <section class="card daily">
+          <h2 data-i18n="days"></h2>
+          <div id="daily" class="days"></div>
+        </section>
+
+        <section class="card sky">
+          <h2 data-i18n="sun"></h2>
+          <div id="sunarc" class="sunarc"></div>
+          <div class="sunrow">
+            <span><i data-i18n="sunrise"></i> <b id="sunrise">&ndash;</b></span
+            ><span
+              ><i data-i18n="daylight"></i> <b id="daylight">&ndash;</b></span
+            ><span><i data-i18n="sunset"></i> <b id="sunset">&ndash;</b></span>
+          </div>
+          <div class="moon">
+            <span id="moon-icon" class="moon-icon" aria-hidden="true"></span
+            ><span><b id="moon-name">&ndash;</b><i id="moon-sub"></i></span>
+          </div>
+        </section>
+      </main>
+
+      <dialog id="day" class="daydlg" aria-labelledby="day-title">
+        <div class="dbox">
+          <div class="dhead">
+            <button
+              id="day-prev"
+              class="ibtn"
+              type="button"
+              data-i18n-label="day_prev"
+              data-i18n-title="day_prev"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M15 5l-7 7 7 7" />
+              </svg>
+            </button>
+            <div class="dtitle">
+              <h2 id="day-title">&ndash;</h2>
+              <p id="day-desc" class="muted">&nbsp;</p>
+            </div>
+            <button
+              id="day-next"
+              class="ibtn"
+              type="button"
+              data-i18n-label="day_next"
+              data-i18n-title="day_next"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+            <button
+              id="day-close"
+              class="ibtn"
+              type="button"
+              data-i18n-label="day_close"
+              data-i18n-title="day_close"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+            </button>
+          </div>
+          <div class="dsum">
+            <div id="day-icon" class="dicon" aria-hidden="true"></div>
+            <div class="dtemps">
+              <b id="day-hi">&ndash;</b><span id="day-lo">&ndash;</span>
+            </div>
+          </div>
+          <div id="day-tiles" class="tiles dtiles"></div>
+          <h3 class="dsub" data-i18n="day_hours"></h3>
+          <div id="day-strip" class="strip"></div>
+          <div
+            id="day-chart"
+            class="chart"
+            role="img"
+            data-i18n-label="chart"
+          ></div>
+        </div>
+      </dialog>
+
+      <footer class="foot muted">
+        © 2026 Martin Helwig &middot;
+        <span data-i18n="data_by"></span>
+        <a href="https://open-meteo.com/" target="_blank" rel="noopener"
+          >Open-Meteo</a
+        >
+        (<a
+          href="https://creativecommons.org/licenses/by/4.0/"
+          target="_blank"
+          rel="noopener"
+          >CC BY 4.0</a
+        >)<span data-i18n="data_processed"></span>
+      </footer>
+    </div>
+    <script src="js/texts.js"></script>
+    <script src="js/icons.js"></script>
+    <script src="js/app.js"></script>
+  </body>
+</html>
