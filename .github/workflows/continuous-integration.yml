@@ -243,11 +243,11 @@ jobs:
     name: Deploy Website
     permissions:
       contents: read
-      packages: write
+      packages: none
       checks: none
       actions: none
       deployments: none
-      id-token: none
+      id-token: write
       issues: none
       discussions: none
       pages: write
