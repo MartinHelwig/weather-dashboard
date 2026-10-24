@@ -75,7 +75,7 @@ jobs:
   execute-tests:
     if: ${{ always() }}
     needs: [check-reuse]
-    name: JUnit Test
+    name: Unit Test
     permissions:
       contents: read
       packages: none
@@ -111,7 +111,7 @@ jobs:
         run: tools/test.sh
 
       - name: Add Headline Job Summary
-        run: echo "## JUnit " >> "$GITHUB_STEP_SUMMARY"
+        run: echo "## Unit Tests" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish Test Report
         if: success() || failure() # always run even if the previous step fails
@@ -122,7 +122,7 @@ jobs:
           include_passed: true
           fail_on_failure: true
           require_tests: true
-          check_name: "JUnit Report"
+          check_name: "Unit Report"
 
       - name: JaCoCo Code Coverage Report
         id: jacoco_reporter
@@ -238,6 +238,7 @@ jobs:
         with:
           subject-path: build/${{ github.event.repository.name }}.tar.gz
 
+  
   deploy:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.create-release == true && inputs.version != '' }}
     needs: [build]
