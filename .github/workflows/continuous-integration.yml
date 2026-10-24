@@ -238,7 +238,6 @@ jobs:
         with:
           subject-path: build/${{ github.event.repository.name }}.tar.gz
 
-  
   deploy:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.create-release == true && inputs.version != '' }}
     needs: [build]
