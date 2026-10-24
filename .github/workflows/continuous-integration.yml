@@ -51,7 +51,7 @@ jobs:
 
       - name: Set Project Name
         run: |
-          echo "# <a href='url'><img src='https://raw.githubusercontent.com/${PROJECT_REPOSITORY}/refs/heads/main/www/images/favicon-128x128.png' align='left' height='48' width='48'></a> Project ${PROJECT_NAME} on ${BRANCH_NAME}" >> "$GITHUB_STEP_SUMMARY"
+          echo "# <a href='url'><img src='https://raw.githubusercontent.com/${PROJECT_REPOSITORY}/refs/heads/main/www/images/favicon-128x128.png' align='left'></a> Project ${PROJECT_NAME} on ${BRANCH_NAME}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Check REUSE
         run: |
@@ -184,6 +184,7 @@ jobs:
         with:
           name: ${{ github.event.repository.name }}
           path: build/${{ github.event.repository.name }}.tar.gz
+          archive: false
           if-no-files-found: error
 
       - name: Signing Artifacts
