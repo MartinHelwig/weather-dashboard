@@ -176,8 +176,7 @@ jobs:
           FILENAME: ${{ github.event.repository.name }}
         run: |
           mkdir -p build
-          tar cvfz "build/${FILENAME}" -C www .
-          printf 'targz_filename=%s\n' "$(basename "$FILENAME")" >> "$GITHUB_OUTPUT"
+          tar cvfz "build/${FILENAME}.tar.gz" -C www .
 
       - name: Upload Artifact
         if: ${{ github.event_name != 'pull_request' }}
@@ -191,7 +190,7 @@ jobs:
         if: ${{ github.event_name == 'release' && github.event.action == 'created' }}
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-path: build/${{ steps.create_artifact.outputs.targz_filename }}
+          subject-path: build/${{ github.event.repository.name }}.tar.gz
 
       - name: Upload Release Artifact (tar.gz)
         if: ${{ github.event_name == 'release' && github.event.action == 'created' }}
