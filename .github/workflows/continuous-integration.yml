@@ -206,11 +206,11 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.create-release == true && inputs.version != '' }}
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.version }}
+          PRODUCT_VERSION: ${{ inputs.version }}
           RELEASE_ARTIFACT: build/${{ github.event.repository.name }}.tar.gz
         run: |
           # Remove a leading 'v' if present (e.g., v1.2.3 -> 1.2.3)
-          CLEAN_VERSION=$(echo "$PRODUCT_VERSION" | sed 's/^v//')
+          CLEAN_VERSION="${PRODUCT_VERSION#v}"
 
           # Official SemVer regex pattern
           SEMVER_REGEX="^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$"
@@ -224,13 +224,13 @@ jobs:
             exit 1
           fi
 
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1 || git rev-parse "$RELEASE_TAG" >/dev/null 2>&1; then
-            echo "ERROR: the release '$RELEASE_TAG' already exists"
+          if gh release view "$PRODUCT_VERSION" >/dev/null 2>&1 || git rev-parse "$PRODUCT_VERSION" >/dev/null 2>&1; then
+            echo "ERROR: the release '$PRODUCT_VERSION' already exists"
             exit 1
           fi
 
-          gh release create "$RELEASE_TAG" "$RELEASE_ARTIFACT" --title "Release $RELEASE_TAG" --generate-notes
-          gh release upload "${RELEASE_TAG}" "${RELEASE_ARTIFACT}"
+          gh release create "$PRODUCT_VERSION" "$RELEASE_ARTIFACT" --title "Release $PRODUCT_VERSION" --generate-notes
+          gh release upload "${PRODUCT_VERSION}" "${RELEASE_ARTIFACT}"
 
       - name: Generate Artifact Attestation
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.create-release == true && inputs.version != '' }}
