@@ -397,6 +397,10 @@ const tests = [
       validateLocalePair(texts.de, texts.en, "texts");
       assertEqual(texts.de.compass.length, 16);
       assertEqual(texts.de.phases.length, 8);
+      assertEqual(texts.de.product_name, "Wetter Dashboard");
+      assertEqual(texts.en.product_name, "Weather Dashboard");
+      assertEqual(texts.de.product_version, "v0.0.0");
+      assertEqual(texts.en.product_version, "v0.0.0");
       assertNotEqual(
         texts.de.title,
         texts.en.title,
