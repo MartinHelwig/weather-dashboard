@@ -51,7 +51,7 @@ jobs:
 
       - name: Set Project Name
         run: |
-          echo "# <a href='url'><img src='https://raw.githubusercontent.com/${PROJECT_REPOSITORY}/www/images/favicon-128x128.png' align='left' height='48' width='48'></a> Project ${PROJECT_NAME} on ${BRANCH_NAME}" >> "$GITHUB_STEP_SUMMARY"
+          echo "# <a href='url'><img src='https://raw.githubusercontent.com/${PROJECT_REPOSITORY}/refs/heads/main/www/images/favicon-128x128.png' align='left' height='48' width='48'></a> Project ${PROJECT_NAME} on ${BRANCH_NAME}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Check REUSE
         run: |
@@ -114,7 +114,7 @@ jobs:
         id: jacoco_reporter
         uses: PavanMudigonda/jacoco-reporter@4fc6bf270fe893e8dda5467e432253a6961345b8 # v5.0
         with:
-          coverage_results_path: target/reports/jacoco/jacoco.xml
+          coverage_results_path: build/tests/jacoco.xml
           coverage_report_name: Coverage
           coverage_report_title: ${{ env.PROJECT_NAME }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -125,7 +125,7 @@ jobs:
 
       - name: Add Coverage Job Summary
         env:
-          COVERAGE_PERCENTAGE: ${{ env.coveragePercentageString }}
+          COVERAGE_PERCENTAGE: ${{ steps.jacoco_reporter.outputs.coveragePercentageString }}
         run: printf '## Code Coverage %s\n' "$COVERAGE_PERCENTAGE" >> "$GITHUB_STEP_SUMMARY"
 
   build:

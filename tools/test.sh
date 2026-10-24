@@ -13,7 +13,7 @@ test_status=0
 deno test --allow-read --clean --coverage=build/tests/coverage --coverage-raw-data-only --junit-path=build/tests/junit-report.xml test/app.test.js || test_status=$?
 
 coverage_status=0
-deno run --allow-read tools/coverage.js || coverage_status=$?
+deno run --allow-read --allow-write=build/tests tools/coverage.js || coverage_status=$?
 
 if ((test_status != 0)); then
 	exit "$test_status"
