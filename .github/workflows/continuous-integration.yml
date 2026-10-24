@@ -229,8 +229,7 @@ jobs:
             exit 1
           fi
 
-          gh release create "$PRODUCT_VERSION" "$RELEASE_ARTIFACT" --title "Release $PRODUCT_VERSION" --generate-notes
-          gh release upload "${PRODUCT_VERSION}" "${RELEASE_ARTIFACT}"
+          gh release create "$PRODUCT_VERSION" "$RELEASE_ARTIFACT" --title "$PRODUCT_VERSION" --generate-notes
 
       - name: Generate Artifact Attestation
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.create-release == true && inputs.version != '' }}
