@@ -41,7 +41,7 @@ jobs:
       statuses: none
     env:
       PROJECT_NAME: ${{ github.event.repository.name }}
-      PROJECT_URL: ${{ github.server_url }}/${{ github.repository }}
+      PROJECT_REPOSITORY: ${{ github.repository }}
       BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
     runs-on: ubuntu-latest
 
@@ -51,14 +51,14 @@ jobs:
 
       - name: Set Project Name
         run: |
-          echo "# <a href='url'><img src='https://raw.githubusercontent.com/${PROJECT_URL}/www/images/favicon-128x128.png' align='left' height='48' width='48'></a> Project ${PROJECT_NAME} on ${BRANCH_NAME}" >> $GITHUB_STEP_SUMMARY
+          echo "# <a href='url'><img src='https://raw.githubusercontent.com/${PROJECT_REPOSITORY}/www/images/favicon-128x128.png' align='left' height='48' width='48'></a> Project ${PROJECT_NAME} on ${BRANCH_NAME}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Check REUSE
         run: |
           echo "pip install reuse" > install.sh && chmod +x install.sh && ./install.sh && rm install.sh
-          echo "## REUSE Compliance" >> $GITHUB_STEP_SUMMARY
+          echo "## REUSE Compliance" >> "$GITHUB_STEP_SUMMARY"
           echo "For more information about REUSE see [official page](https://reuse.software/)."
-          reuse lint | sed  s'/# /### /g' >> $GITHUB_STEP_SUMMARY
+          reuse lint | sed 's/# /### /g' >> "$GITHUB_STEP_SUMMARY"
           reuse lint --quiet
 
   execute-tests:
@@ -97,7 +97,7 @@ jobs:
         run: tools/test.sh
 
       - name: Add Headline Job Summary
-        run: echo "## JUnit " >> $GITHUB_STEP_SUMMARY
+        run: echo "## JUnit " >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish Test Report
         if: success() || failure() # always run even if the previous step fails
@@ -124,7 +124,9 @@ jobs:
           publish_only_summary: false
 
       - name: Add Coverage Job Summary
-        run: echo "## Code Coverage ${{ env.coveragePercentageString }}" >> $GITHUB_STEP_SUMMARY
+        env:
+          COVERAGE_PERCENTAGE: ${{ env.coveragePercentageString }}
+        run: printf '## Code Coverage %s\n' "$COVERAGE_PERCENTAGE" >> "$GITHUB_STEP_SUMMARY"
 
   build:
     needs: [execute-tests]
@@ -169,13 +171,16 @@ jobs:
         id: create_artifact
         run: |
           FILENAME=weather-dashboard.tar.gz
-          tar cvfz build/${FILENAME} www/**
-          echo "targz_filename=$(basename ${FILENAME})" >> $GITHUB_OUTPUT
+          tar cvfz "build/${FILENAME}" www/**
+          printf 'targz_filename=%s\n' "$(basename "$FILENAME")" >> "$GITHUB_OUTPUT"
 
       - name: Signing Artifacts
         if: ${{ github.event_name != 'pull_request' }}
+        env:
+          GPG_SIGNING_PASSPHRASE: ${{ secrets.GPG_SIGNING_PASSPHRASE }}
+          ARTIFACT_FILENAME: ${{ steps.create_artifact.outputs.targz_filename }}
         run: |
-          gpg --pinentry-mode loopback --batch --passphrase ${{ secrets.GPG_SIGNING_PASSPHRASE }} --armor --detach-sign target/${{ steps.create_artifact.outputs.targz_filename }}
+          gpg --pinentry-mode loopback --batch --passphrase "$GPG_SIGNING_PASSPHRASE" --armor --detach-sign "target/$ARTIFACT_FILENAME"
 
       - name: Upload Release Artifact (tar.gz)
         if: ${{ github.event_name == 'release' && github.event.action == 'created' }}
@@ -268,5 +273,5 @@ jobs:
 
       - name: Add Authors Summary
         run: |
-          echo "## Authors Summary" >> $GITHUB_STEP_SUMMARY
-          git shortlog -sce --all >> $GITHUB_STEP_SUMMARY
+          echo "## Authors Summary" >> "$GITHUB_STEP_SUMMARY"
+          git shortlog -sce --all >> "$GITHUB_STEP_SUMMARY"

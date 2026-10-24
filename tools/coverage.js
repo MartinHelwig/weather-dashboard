@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: MIT
 
+/* global Deno */
+
 "use strict";
 
 const coverageDirectory = new URL("../build/tests/coverage/", import.meta.url);
