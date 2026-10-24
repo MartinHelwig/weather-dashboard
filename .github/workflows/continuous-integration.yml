@@ -115,7 +115,7 @@ jobs:
 
       - name: Publish Test Report
         if: success() || failure() # always run even if the previous step fails
-        uses: mikepenz/action-junit-report@a427a90771729d8f85b6ab0cdaa1a5929cab985d # v5
+        uses: mikepenz/action-junit-report@6ef3fdcfcd5f0b5d14df3e659ef19b8c6820f93d # v6.6.1
         with:
           report_paths: build/tests/junit-report.xml
           detailed_summary: true
@@ -126,7 +126,7 @@ jobs:
 
       - name: JaCoCo Code Coverage Report
         id: jacoco_reporter
-        uses: PavanMudigonda/jacoco-reporter@4fc6bf270fe893e8dda5467e432253a6961345b8 # v5.0
+        uses: PavanMudigonda/jacoco-reporter@112997f0c32da82d8bfa4a972b4afe67a15529fe # v5.2.1
         with:
           coverage_results_path: build/tests/jacoco.xml
           coverage_report_name: Coverage
@@ -270,7 +270,7 @@ jobs:
 
       - name: Generate Product Version
         env:
-          PRODUCT_VERSION: ${{ github.event.release.tag_name || github.sha }}
+          PRODUCT_VERSION: ${{ inputs.version || github.sha }}
         run: |
           sed -i "s/product_version: \"[^\"]*\"/product_version: \"${PRODUCT_VERSION}\"/" www/js/texts.js
 
