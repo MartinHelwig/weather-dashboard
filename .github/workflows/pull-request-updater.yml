@@ -12,12 +12,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
-# Declare default permissions as read only.
-permissions: read-all
+permissions: {}
 
 jobs:
   build:
-    name: Issue Updater
+    name: Pull Request Updater
     permissions:
       contents: none
       packages: none
