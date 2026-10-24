@@ -43,6 +43,7 @@ jobs:
       PROJECT_NAME: ${{ github.event.repository.name }}
       PROJECT_REPOSITORY: ${{ github.repository }}
       BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+      PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
     runs-on: ubuntu-latest
 
     steps:
@@ -51,7 +52,7 @@ jobs:
 
       - name: Set Project Name
         run: |
-          echo "# <a href='url'><img src='https://raw.githubusercontent.com/${PROJECT_REPOSITORY}/refs/heads/main/www/images/favicon-128x128.png' align='left'></a> Project ${PROJECT_NAME} on ${BRANCH_NAME}" >> "$GITHUB_STEP_SUMMARY"
+          echo "# <a href='${PAGES_URL}'><img src='https://raw.githubusercontent.com/${PROJECT_REPOSITORY}/refs/heads/main/www/images/favicon-48x48.png' align='left'></a> Project ${PROJECT_NAME} on ${BRANCH_NAME}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Check REUSE
         run: |
