@@ -14,7 +14,7 @@ on:
   pull_request:
     types: [opened, reopened, synchronize]
   release:
-    types: [created]
+    types: [published]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -48,7 +48,9 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set Project Name
         run: |
@@ -87,7 +89,9 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
         with:
@@ -156,7 +160,9 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Prepare Environment (Global)
         run: |
@@ -164,15 +170,13 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Prepare Release Version
-        if: ${{ github.event_name == 'release' && github.event.action == 'created' }}
-        shell: bash
-        run: ${{ env.COMMAND_MAVEN }} versions:set -DremoveSnapshot=true
+      - name: Generate Product Version
         env:
-          COMMAND_MAVEN: "${{ runner.os == 'Linux' && 'xvfb-run mvn' || 'mvn' }} ${{ env.GLOBAL_MAVEN_ARGS }}"
+          PRODUCT_VERSION: ${{ github.event.release.tag_name || github.sha }}
+        run: |
+          sed -i "s/product_version: \"[^\"]*\"/product_version: \"${PRODUCT_VERSION}\"/" www/js/texts.js
 
       - name: Create Artifact
-        id: create_artifact
         env:
           FILENAME: ${{ github.event.repository.name }}
         run: |
@@ -189,24 +193,22 @@ jobs:
           if-no-files-found: error
 
       - name: Signing Artifacts
-        if: ${{ github.event_name == 'release' && github.event.action == 'created' }}
+        if: ${{ github.event_name == 'release' && github.event.action == 'published' }}
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: build/${{ github.event.repository.name }}.tar.gz
 
       - name: Upload Release Artifact (tar.gz)
-        if: ${{ github.event_name == 'release' && github.event.action == 'created' }}
-        uses: actions/upload-release-asset@e8f9f06c4b078e705bd2ea027f0926603fc9b4d5 # v1.0.2
+        if: ${{ github.event_name == 'release' && github.event.action == 'published' }}
         env:
-          GITHUB_TOKEN: ${{ github.token }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: build/${{ github.event.repository.name }}.tar.gz
-          asset_name: ${{ github.event.repository.name }}.tar.gz
-          asset_content_type: application/gzip
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_ARTIFACT: build/${{ github.event.repository.name }}.tar.gz
+        run: |
+          gh release upload "${RELEASE_TAG}" "${RELEASE_ARTIFACT}" --clobber
 
   deploy:
-    if: ${{ github.event_name == 'release' && github.event.action == 'created' }}
+    if: ${{ github.event_name == 'release' && github.event.action == 'published' }}
     needs: [build]
     name: Deploy Website
     permissions:
@@ -232,6 +234,12 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Generate Product Version
+        env:
+          PRODUCT_VERSION: ${{ github.event.release.tag_name || github.sha }}
+        run: |
+          sed -i "s/product_version: \"[^\"]*\"/product_version: \"${PRODUCT_VERSION}\"/" www/js/texts.js
 
       - name: Setup Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
@@ -268,8 +276,9 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: "0" # to get the authors summary
 
       - name: Add Authors Summary
