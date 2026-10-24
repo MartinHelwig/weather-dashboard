@@ -171,6 +171,7 @@ jobs:
         id: create_artifact
         run: |
           FILENAME=weather-dashboard.tar.gz
+          mkdir -p build
           tar cvfz "build/${FILENAME}" www/**
           printf 'targz_filename=%s\n' "$(basename "$FILENAME")" >> "$GITHUB_OUTPUT"
 
