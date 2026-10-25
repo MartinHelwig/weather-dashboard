@@ -49,7 +49,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ github.sha }}
+          ref: ${{ github.ref_type == 'tag' && github.ref || github.sha }}
 
       - name: Set Project Name
         run: |
@@ -91,7 +91,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ github.sha }}
+          ref: ${{ github.ref_type == 'tag' && github.ref || github.sha }}
 
       - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
         with:
@@ -163,7 +163,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ github.sha }}
+          ref: ${{ github.ref_type == 'tag' && github.ref || github.sha }}
 
       - name: Prepare Environment (Global)
         run: |
@@ -198,8 +198,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PRODUCT_VERSION: ${{ github.ref_name }}
+          TAG_REF: ${{ github.ref }}
           RELEASE_ARTIFACT: build/${{ github.event.repository.name }}.tar.gz
         run: |
+          if ! tag_object_type=$(git cat-file -t "$TAG_REF"); then
+            echo "ERROR: Could not resolve release tag '$TAG_REF'."
+            exit 1
+          fi
+
+          if [[ "$tag_object_type" != "tag" ]]; then
+            echo "ERROR: Release tag '$TAG_REF' must be an annotated Git tag."
+            exit 1
+          fi
+
           # Remove a leading 'v' if present (e.g., v1.2.3 -> 1.2.3)
           CLEAN_VERSION="${PRODUCT_VERSION#v}"
 
@@ -229,7 +240,7 @@ jobs:
           subject-path: build/${{ github.event.repository.name }}.tar.gz
 
   build-docker:
-    needs: [execute-tests]
+    needs: [build]
     name: Build Docker
     permissions:
       contents: read
@@ -256,7 +267,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ github.sha }}
+          ref: ${{ github.ref_type == 'tag' && github.ref || github.sha }}
 
       - name: Prepare Environment (Global)
         run: |
@@ -323,7 +334,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ github.sha }}
+          ref: ${{ github.ref_type == 'tag' && github.ref || github.sha }}
 
       - name: Generate Product Version
         env:
@@ -369,7 +380,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ github.sha }}
+          ref: ${{ github.ref_type == 'tag' && github.ref || github.sha }}
           fetch-depth: "0" # to get the authors summary
 
       - name: Add Authors Summary
