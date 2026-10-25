@@ -28,7 +28,7 @@ For security reasons, the web server inside the container runs as a non-root use
 docker run -d -p 80:8080 --name weather-dashboard --restart unless-stopped ghcr.io/MartinHelwig/weather-dashboard:latest
 ```
 
-Once started, the website will be accessible at `http://localhost`.
+Once started, the site will be accessible at `http://localhost`.
 
 ---
 
