@@ -237,9 +237,77 @@ jobs:
         with:
           subject-path: build/${{ github.event.repository.name }}.tar.gz
 
+  build-docker:
+    name: Build Docker
+    permissions:
+      contents: read
+      packages: write
+      checks: none
+      actions: none
+      deployments: none
+      id-token: none
+      issues: none
+      discussions: none
+      pages: none
+      pull-requests: none
+      repository-projects: none
+      security-events: none
+      statuses: none
+
+    env:
+      PROJECT_NAME: ${{ github.event.repository.name }}
+      BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+
+      - name: Prepare Environment (Global)
+        run: |
+          echo "preparing global environment"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Generate Product Version
+        env:
+          PRODUCT_VERSION: ${{ inputs.version || github.sha }}
+        run: |
+          sed -i "s/product_version: \"[^\"]*\"/product_version: \"${PRODUCT_VERSION}\"/" www/js/texts.js
+
+      - name: Extract Docker Metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,format=short
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+
+      - name: Log in to GHCR
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build/Publish Docker Image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
   deploy:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.create-release == true && inputs.version != '' }}
-    needs: [build]
+    needs: [build, build-docker]
     name: Deploy Website
     permissions:
       contents: read
