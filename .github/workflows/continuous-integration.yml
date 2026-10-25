@@ -238,6 +238,7 @@ jobs:
           subject-path: build/${{ github.event.repository.name }}.tar.gz
 
   build-docker:
+    needs: [execute-tests]
     name: Build Docker
     permissions:
       contents: read

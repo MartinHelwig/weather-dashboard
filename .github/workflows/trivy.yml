@@ -11,12 +11,12 @@ name: Trivy vulnerability scanner
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
     # The branches below must be a subset of the branches above
-    branches: [ "main" ]
+    branches: ["main"]
   schedule:
-    - cron: '00 20 * * 5'
+    - cron: "00 20 * * 5"
 
 permissions:
   contents: read
