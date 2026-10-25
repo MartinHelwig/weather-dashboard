@@ -47,14 +47,25 @@ jobs:
           persist-credentials: false
           ref: ${{ github.sha }}
 
-      - name: Build Docker Image
+      - name: Set lowercase image reference
+        id: image
+        env:
+          REPOSITORY: ${{ github.repository }}
+          SHA: ${{ github.sha }}
         run: |
-          docker build -t docker.io/my-organization/my-app:${{ github.sha }} .
+          repository=$(printf '%s' "$REPOSITORY" | tr '[:upper:]' '[:lower:]')
+          echo "reference=ghcr.io/${repository}:${SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Build Docker Image
+        env:
+          IMAGE_REF: ${{ steps.image.outputs.reference }}
+        run: |
+          docker build -t "$IMAGE_REF" .
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: ghcr.io/${{ github.repository }}:${{ github.sha }}
+          image-ref: ${{ steps.image.outputs.reference }}
           format: sarif
           output: trivy-results.sarif
           severity: CRITICAL,HIGH
