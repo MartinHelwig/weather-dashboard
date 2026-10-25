@@ -1,0 +1,76 @@
+# SPDX-FileCopyrightText: 2026 Martin Helwig
+#
+# SPDX-License-Identifier: MIT
+
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+
+name: Trivy vulnerability scanner
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    # The branches below must be a subset of the branches above
+    branches: ["main"]
+  schedule:
+    - cron: "00 20 * * 5"
+
+permissions:
+  contents: read
+
+jobs:
+  trivy:
+    name: Trivy vulnerability scanner
+    permissions:
+      contents: read
+      packages: none
+      checks: none
+      actions: read
+      deployments: none
+      id-token: none
+      issues: none
+      discussions: none
+      pages: none
+      pull-requests: none
+      repository-projects: none
+      security-events: write
+      statuses: none
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+
+      - name: Set lowercase image reference
+        id: image
+        env:
+          REPOSITORY: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          repository=$(printf '%s' "$REPOSITORY" | tr '[:upper:]' '[:lower:]')
+          echo "reference=ghcr.io/${repository}:${SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Build Docker Image
+        env:
+          IMAGE_REF: ${{ steps.image.outputs.reference }}
+        run: |
+          docker build -t "$IMAGE_REF" .
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ steps.image.outputs.reference }}
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          sarif_file: trivy-results.sarif
