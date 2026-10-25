@@ -2,17 +2,20 @@
 #
 # SPDX-License-Identifier: MIT
 
-FROM nginx/nginx-unprivileged:alpine
+FROM busybox:1.38.0-musl
 
-WORKDIR /usr/share/nginx/html
+RUN mkdir -p /home/www-data
 
-COPY www/ .
+USER www-data
 
-USER 101
+WORKDIR /home/www-data
+
+COPY www www
+COPY tools/entrypoint.sh /
 
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD ["wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/"]
 
-CMD ["nginx", "-g", "daemon off;"]
+ENTRYPOINT ["/entrypoint.sh"]
