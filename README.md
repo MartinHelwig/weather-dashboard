@@ -25,7 +25,7 @@ This project is distributed as a pre-built, minimal Docker image. The static HTM
 For security reasons, the web server inside the container runs as a non-root user and listens on port `8080`. You can easily map this to your desired host port (e.g., port `80`) when starting the container.
 
 ```bash
-docker run -d -p 80:8080 --name weather-dashboard --restart unless-stopped ghcr.io/MartinHelwig/weather-dashboard:latest
+docker run -d -p 80:8080 --name weather-dashboard --restart unless-stopped ghcr.io/martinhelwig/weather-dashboard:latest
 ```
 
 Once started, the site will be accessible at `http://localhost`.
